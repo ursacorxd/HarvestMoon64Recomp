@@ -71,8 +71,8 @@ jobs:
 
       - name: Compilar herramienta nativa file_to_c para el host
         run: |
-          FILE_PATH=$(find . -type f -name "file_to_c.cpp")
-          echo "Encontrado en: $FILE_PATH"
+          FILE_PATH=$(find . -path "*/tools/file_to_c/file_to_c.cpp" | head -n 1)
+          echo "Usando: $FILE_PATH"
           g++ -O3 "$FILE_PATH" -o native_file_to_c
 
       - name: Compilar juego nativo de Switch (.nro)
