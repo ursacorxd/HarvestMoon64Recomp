@@ -50,7 +50,7 @@ jobs:
       - name: Compilar juego nativo de Switch (.nro)
         run: |
           mkdir build_switch && cd build_switch
-          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
+          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_C_COMPILER=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-gcc -DCMAKE_CXX_COMPILER=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-g++ ..
           make -j4
           
       - name: Guardar NRO
