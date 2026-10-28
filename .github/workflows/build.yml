@@ -9,15 +9,46 @@ jobs:
         with:
           submodules: recursive
           
-      - name: Mapa de archivos del proyecto
+      - name: Descargar ROM
+        run: curl -L -o baserom.us.z64 "https://files.catbox.moe/yzq3kd.z64"
+        
+      - name: Instalar librerias de Nintendo Switch
         run: |
-          echo "--- ARCHIVOS EN LA RAIZ ---"
-          ls -la
+          dkp-pacman -Sy --noconfirm
+          dkp-pacman -S --noconfirm switch-dev switch-sdl2 switch-tools switch-mesa switch-glad
           
-          echo "--- ARCHIVOS EN CARPETA TOOLS (Si existe) ---"
-          ls -la tools/ || true
+      - name: Compilar herramienta extractora (N64Recomp)
+        run: |
+          # Instalamos compiladores basicos para el servidor
+          apt-get update && apt-get install -y build-essential
           
-          echo "--- BUSCANDO SCRIPTS PYTHON Y CONFIGURACIONES ---"
-          find . -maxdepth 2 -name "*.py"
-          find . -maxdepth 2 -name "*.toml"
-          find . -maxdepth 2 -name "*.sh"
+          # Clonamos el motor oficial de N64Recomp y lo construimos rapidamente
+          git clone https://github.com/N64Recomp/N64Recomp.git recomp_tool
+          cd recomp_tool
+          git submodule update --init --recursive
+          cmake -B build
+          cmake --build build -j4
+          
+      - name: Extraer codigo fuente de la ROM
+        run: |
+          # Usamos la herramienta que acabamos de compilar para generar el C++ de la ROM
+          ./recomp_tool/build/N64Recomp hm64.us.toml
+          
+          # Extraemos tambien el chip de audio/video (RSP)
+          if [ -f "./recomp_tool/build/RSPRecomp" ]; then
+            ./recomp_tool/build/RSPRecomp n_aspMain.toml
+          else
+            ./recomp_tool/build/N64Recomp n_aspMain.toml
+          fi
+          
+      - name: Compilar juego nativo de Switch (.nro)
+        run: |
+          mkdir build_switch && cd build_switch
+          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
+          make -j4
+          
+      - name: Guardar NRO
+        uses: actions/upload-artifact@v4
+        with:
+          name: HM64Recomp-Switch
+          path: build_switch/*.nro
