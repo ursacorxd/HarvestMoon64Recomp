@@ -89,19 +89,21 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
-          # Creamos un script puente (wrapper) en lugar de un binario estático 
-          # para que cuando CMake invoque 'file_to_c', este ejecute nuestro nativo de PC
-          echo '#!/bin/sh' > file_to_c
-          echo '../native_file_to_c "$@"' >> file_to_c
-          chmod +x file_to_c
+          # Hack maestro: Modificamos el archivo de reglas de CMake para que, 
+          # en lugar de intentar compilar file_to_c con el compilador de Switch, 
+          # simplemente copie nuestro binario nativo ya hecho.
+          find . -name "file_to_c.dir" -type d | while read dir; do
+            echo '#!/bin/sh' > "$dir/../../../../native_file_to_c_wrapper"
+          done
           
-          # Hacemos lo mismo en la subruta de herramientas por seguridad
-          mkdir -p rt64/src/tools/file_to_c
-          echo '#!/bin/sh' > rt64/src/tools/file_to_c/file_to_c
-          echo '../../../../native_file_to_c "$@"' >> rt64/src/tools/file_to_c/file_to_c
-          chmod +x rt64/src/tools/file_to_c/file_to_c
+          # Forzamos la sustitucion directa del objetivo file_to_c en el Makefile generado
+          sed -i 's|file_to_c\.elf|../native_file_to_c|g' CMakeFiles/PatchesLib.dir/build.make || true
+          sed -i 's|file_to_c$|../native_file_to_c|g' CMakeFiles/PatchesLib.dir/build.make || true
           
-          make -j1
+          # Creamos un enlace directo con el nombre exacto que espera el script de parches
+          ln -sf ../native_file_to_c file_to_c
+          
+          make -j4
 
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
