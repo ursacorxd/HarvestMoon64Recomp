@@ -9,8 +9,17 @@ jobs:
         with:
           submodules: recursive
           
-      - name: Descargar ROM
-        run: curl -L -o hm64.us.z64 "https://limewire.com/d/fUnMB#RcabX2FQJ3"
+      - name: Descargar ROM y verificar estado
+        run: |
+          echo "Iniciando descarga..."
+          curl -v -L -o hm64.us.z64 "TU_ENLACE_AQUI"
+          
+          echo "--- INFORMACIÓN DEL ARCHIVO DESCARGADO ---"
+          ls -lh hm64.us.z64
+          
+          echo "--- PRIMEROS 100 BYTES (Para ver si es una ROM o un error HTML) ---"
+          head -c 100 hm64.us.z64
+          echo ""
         
       - name: Compilar herramienta extractora (N64Recomp)
         run: |
