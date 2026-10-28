@@ -57,11 +57,9 @@ jobs:
           sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
           sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/mock_headers")' CMakeLists.txt
           
-          # Parches de M_PI y controles
           find . -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           find . -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           
-          # Parches de tipos de ventanas de PC incompatibles con Switch
           find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
           find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
           find . -type f -name "plume_render_interface.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
@@ -70,6 +68,11 @@ jobs:
           
           find . -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
+
+      - name: Compilar herramienta nativa file_to_c para el host
+        run: |
+          # Compilamos file_to_c de forma nativa para x86_64 para que pueda correr en el runner
+          g++ -O3 rt64/src/tools/file_to_c/file_to_c.cpp -o native_file_to_c
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
@@ -84,7 +87,13 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
             -DPLUME_BUILD_VULKAN=OFF \
             ..
-          make -j1
+          
+          # Construimos primero file_to_c y lo reemplazamos por nuestra version nativa
+          make file_to_c
+          cp ../native_file_to_c file_to_c.elf
+          
+          # Continuamos con el resto de la compilacion
+          make -j4
 
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
