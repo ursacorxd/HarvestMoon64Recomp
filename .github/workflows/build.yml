@@ -63,7 +63,6 @@ jobs:
           find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
           find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
           
-          # Solucion definitiva para invocar la funcion global quick_exit de C
           find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
           
           find . -type f -name "plume_render_interface_types.h" -exec sed -i 's/static_assert(false, "RenderWindow was not defined for this platform.");/\/\//g' {} +
@@ -95,16 +94,14 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
+          cp ../native_file_to_c /usr/bin/file_to_c
+          chmod +x /usr/bin/file_to_c
+          
           cp ../native_file_to_c file_to_c
           chmod +x file_to_c
           
-          mkdir -p rt64/src/tools/file_to_c
-          cp ../native_file_to_c rt64/src/tools/file_to_c/file_to_c
-          chmod +x rt64/src/tools/file_to_c/file_to_c
-          
-          # Modo verbose activado para ver el comando exacto del fallo final
-          make VERBOSE=1 -j1
-          
+          make -j4
+
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
         with:
