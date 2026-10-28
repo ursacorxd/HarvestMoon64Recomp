@@ -16,7 +16,7 @@ jobs:
         run: |
           apt-get update && apt-get install -y libsdl2-dev libvulkan-dev
           dkp-pacman -Sy --noconfirm
-          dkp-pacman -S --noconfirm switch-dev switch-sdl2 switch-tools switch-vulkan-mrdude
+          dkp-pacman -S --noconfirm switch-dev switch-sdl2 switch-tools switch-mesa switch-glad
           
       - name: Paso 1 - PC (Extraer el codigo de la ROM)
         run: |
