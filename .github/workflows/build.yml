@@ -50,7 +50,7 @@ jobs:
           echo '#define RTLD_LOCAL 0' >> mock_headers/dlfcn.h
           echo '#define RTLD_NOW 2' >> mock_headers/dlfcn.h
           echo 'static inline void* dlopen(const char* f, int m) { return 0; }' >> mock_headers/dlfcn.h
-          echo 'static inline void* dlclose(void* h) { return 0; }' >> mock_headers/dlfcn.h
+          echo 'static inline int dlclose(void* h) { return 0; }' >> mock_headers/dlfcn.h
           echo 'static inline void* dlsym(void* h, const char* n) { return 0; }' >> mock_headers/dlfcn.h
           echo 'static inline char* dlerror(void) { return 0; }' >> mock_headers/dlfcn.h
           
@@ -89,12 +89,11 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
-          # Reemplazamos el binario antes de compilar
           mkdir -p rt64/src/tools/file_to_c
           cp ../native_file_to_c file_to_c.elf || true
           
-          # Compilamos todo el proyecto completo de una sola vez
-          make -j4
+          # Compilacion secuencial estricta para capturar el error exacto
+          make -j1
 
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
