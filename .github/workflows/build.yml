@@ -23,10 +23,10 @@ jobs:
           
       - name: Extraer codigo fuente de la ROM
         run: |
-          # Verificamos que la ROM exista en el directorio actual antes de extraer
-          ls -la hm64.us.z64
+          # Actualizar submódulos internos del repositorio por si acaso
+          git submodule update --init --recursive
           
-          # Ejecutamos la extraccion asegurando la ruta
+          # Ejecutar extracción
           ./recomp_tool/build/N64Recomp hm64.us.toml
           
           if [ -f "./recomp_tool/build/RSPRecomp" ]; then
