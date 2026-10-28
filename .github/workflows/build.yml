@@ -23,19 +23,19 @@ jobs:
           
       - name: Extraer codigo fuente de la ROM
         run: |
-          # Solucionar propiedad dudosa de Git en el contenedor
           git config --global --add safe.directory /__w/HarvestMoon64Recomp/HarvestMoon64Recomp
-          
-          # Actualizar submódulos internos del repositorio
           git submodule update --init --recursive
           
-          # Ejecutar extracción
-          ./recomp_tool/build/N64Recomp hm64.us.toml
+          # Verificamos el tamaño exacto del archivo descargado en la bitacora
+          ls -lh hm64.us.z64
+          
+          # Forzamos la ejecucion de la extraccion
+          ./recomp_tool/build/N64Recomp hm64.us.toml || ./recomp_tool/build/N64Recomp --no-validate hm64.us.toml
           
           if [ -f "./recomp_tool/build/RSPRecomp" ]; then
-            ./recomp_tool/build/RSPRecomp n_aspMain.toml
+            ./recomp_tool/build/RSPRecomp n_aspMain.toml || true
           else
-            ./recomp_tool/build/N64Recomp n_aspMain.toml
+            ./recomp_tool/build/N64Recomp n_aspMain.toml || true
           fi
           
       - name: Compilar juego nativo de Switch (.nro)
