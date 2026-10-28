@@ -10,14 +10,11 @@ jobs:
           submodules: recursive
           
       - name: Descargar ROM
-        run: curl -L -o baserom.us.z64 "https://files.catbox.moe/yzq3kd.z64"
+        run: curl -L -o hm64.us.z64 "https://files.catbox.moe/yzq3kd.z64"
         
       - name: Compilar herramienta extractora (N64Recomp)
         run: |
-          # Instalamos dependencias basicas de compilacion para PC
           apt-get update && apt-get install -y build-essential cmake git
-          
-          # Clonamos el motor oficial de N64Recomp y lo construimos
           git clone https://github.com/N64Recomp/N64Recomp.git recomp_tool
           cd recomp_tool
           git submodule update --init --recursive
@@ -26,10 +23,12 @@ jobs:
           
       - name: Extraer codigo fuente de la ROM
         run: |
-          # Generamos el C++ a partir de la ROM original
+          # Verificamos que la ROM exista en el directorio actual antes de extraer
+          ls -la hm64.us.z64
+          
+          # Ejecutamos la extraccion asegurando la ruta
           ./recomp_tool/build/N64Recomp hm64.us.toml
           
-          # Extraemos el chip de audio/video (RSP)
           if [ -f "./recomp_tool/build/RSPRecomp" ]; then
             ./recomp_tool/build/RSPRecomp n_aspMain.toml
           else
