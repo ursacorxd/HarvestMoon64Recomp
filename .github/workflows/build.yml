@@ -13,7 +13,7 @@ jobs:
       - name: Descargar ROM y verificar estado
         run: |
           echo "Iniciando descarga..."
-          curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0name: "
+          curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
           
           echo "--- INFORMACIÓN DEL ARCHIVO DESCARGADO ---"
           ls -lh hm64.us.z64
