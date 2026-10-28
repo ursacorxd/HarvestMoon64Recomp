@@ -63,8 +63,8 @@ jobs:
           find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
           find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
           
-          find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/quick_exit/g' {} +
-          
+          find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
+
           find . -type f -name "plume_render_interface_types.h" -exec sed -i 's/static_assert(false, "RenderWindow was not defined for this platform.");/\/\//g' {} +
           find . -type f -name "plume_render_interface_types.h" -exec sed -i '1i typedef void* RenderWindow;' {} +
           find . -type f -name "plume_render_interface.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
