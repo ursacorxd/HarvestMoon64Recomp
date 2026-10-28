@@ -12,14 +12,26 @@ jobs:
       - name: Descargar ROM
         run: curl -L -o baserom.us.z64 "https://files.catbox.moe/yzq3kd.z64"
         
-      - name: Compilar el juego
+      - name: Instalar herramientas para PC y Switch
         run: |
-          mkdir build && cd build
+          apt-get update && apt-get install -y libsdl2-dev libvulkan-dev
+          dkp-pacman -Sy --noconfirm
+          dkp-pacman -S --noconfirm switch-dev switch-sdl2 switch-tools switch-vulkan-mrdude
+          
+      - name: Paso 1 - PC (Extraer el codigo de la ROM)
+        run: |
+          mkdir build_pc && cd build_pc
+          cmake -G "Unix Makefiles" ..
+          make -j4
+          
+      - name: Paso 2 - Switch (Crear el juego final .nro)
+        run: |
+          mkdir build_switch && cd build_switch
           cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
           make -j4
           
-      - name: Subir archivo final
+      - name: Subir archivo final NRO
         uses: actions/upload-artifact@v4
         with:
           name: HM64Recomp-Switch
-          path: build/*.nro
+          path: build_switch/*.nro
