@@ -1,4 +1,4 @@
-name: Build NRO
+Build NRO
 on: [workflow_dispatch]
 
 jobs:
@@ -13,13 +13,13 @@ jobs:
       - name: Descargar ROM y verificar estado
         run: |
           echo "Iniciando descarga..."
-          curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
+          curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0name: "
           
           echo "--- INFORMACIÓN DEL ARCHIVO DESCARGADO ---"
           ls -lh hm64.us.z64
           
           if head -c 15 hm64.us.z64 | grep -q "<!DOCTYPE"; then
-            echo "ERROR: Descargaste una página HTML en lugar de la ROM binaria."
+            echo "ERROR: Descargaste una pagina HTML en lugar de la ROM binaria."
             exit 1
           fi
 
@@ -32,21 +32,30 @@ jobs:
           cmake -B build
           cmake --build build -j4
 
-      - name: Extraer código fuente de la ROM
+      - name: Extraer codigo fuente de la ROM y RSP
         run: |
           git config --global --add safe.directory /__w/HarvestMoon64Recomp/HarvestMoon64Recomp
           git submodule update --init --recursive
-          ./recomp_tool/build/N64Recomp config hm64.us.toml || ./recomp_tool/build/N64Recomp hm64.us.toml || true
+          
+          echo "Extrayendo juego principal..."
+          ./recomp_tool/build/N64Recomp hm64.us.toml
+          
+          echo "Extrayendo microcodigo de audio/video (RSP)..."
+          if [ -f "./recomp_tool/build/RSPRecomp" ]; then
+            ./recomp_tool/build/RSPRecomp n_aspMain.toml
+          else
+            ./recomp_tool/build/N64Recomp n_aspMain.toml
+          fi
+
+      - name: Arreglar error de lenguaje en NFD
+        run: |
+          # Inyectamos a la fuerza el lenguaje de compilacion para que CMake no colapse
+          echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
           mkdir build_switch && cd build_switch
-          cmake -G "Unix Makefiles" \
-            -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
-            -DCMAKE_LINKER=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-ld \
-            -DCMAKE_CXX_LINK_EXECUTABLE="/opt/devkitpro/devkitA64/bin/aarch64-none-elf-g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>" \
-            -DNFD_PORT_PORTABLE=OFF \
-            ..
+          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
           make -j4
 
       - name: Guardar NRO
