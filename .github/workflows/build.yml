@@ -14,6 +14,7 @@ jobs:
         run: |
           echo "Iniciando descarga..."
           curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
+
           
           if head -c 15 hm64.us.z64 | grep -q "<!DOCTYPE"; then
             echo "ERROR: Descargaste una pagina HTML en lugar de la ROM binaria."
@@ -68,10 +69,18 @@ jobs:
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
+          # Copiar ejecutables a la raiz para que el vinculador de parches los encuentre
+          cp recomp_tool/build/N64Recomp .
+          cp recomp_tool/build/RSPRecomp . || true
+          
           mkdir build_switch && cd build_switch
+          
+          # Copiar tambien al directorio de construccion
+          cp ../recomp_tool/build/N64Recomp .
+          cp ../recomp_tool/build/RSPRecomp . || true
+          
           cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DPLUME_BACKEND_VULKAN=OFF -DNFD_PORT_PORTABLE=OFF ..
-          # CAMBIADO A -j1 PARA VER EL ERROR EXACTO AL FINAL
-          make -j1
+          make -j4
 
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
