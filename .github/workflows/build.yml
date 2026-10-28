@@ -9,29 +9,15 @@ jobs:
         with:
           submodules: recursive
           
-      - name: Descargar ROM
-        run: curl -L -o baserom.us.z64 "https://files.catbox.moe/yzq3kd.z64"
-        
-      - name: Instalar herramientas para PC y Switch
+      - name: Mapa de archivos del proyecto
         run: |
-          apt-get update && apt-get install -y libsdl2-dev libvulkan-dev libgtk-3-dev
-          dkp-pacman -Sy --noconfirm
-          dkp-pacman -S --noconfirm switch-dev switch-sdl2 switch-tools switch-mesa switch-glad
+          echo "--- ARCHIVOS EN LA RAIZ ---"
+          ls -la
           
-      - name: Paso 1 - PC (Extraer el codigo de la ROM)
-        run: |
-          mkdir build_pc && cd build_pc
-          cmake -G "Unix Makefiles" ..
-          make -j4
+          echo "--- ARCHIVOS EN CARPETA TOOLS (Si existe) ---"
+          ls -la tools/ || true
           
-      - name: Paso 2 - Switch (Crear el juego final .nro)
-        run: |
-          mkdir build_switch && cd build_switch
-          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
-          make -j4
-          
-      - name: Subir archivo final NRO
-        uses: actions/upload-artifact@v4
-        with:
-          name: HM64Recomp-Switch
-          path: build_switch/*.nro
+          echo "--- BUSCANDO SCRIPTS PYTHON Y CONFIGURACIONES ---"
+          find . -maxdepth 2 -name "*.py"
+          find . -maxdepth 2 -name "*.toml"
+          find . -maxdepth 2 -name "*.sh"
