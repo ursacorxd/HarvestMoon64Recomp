@@ -63,8 +63,9 @@ jobs:
           find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
           find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
           
+          # Solucion definitiva para invocar la funcion global quick_exit de C
           find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
-
+          
           find . -type f -name "plume_render_interface_types.h" -exec sed -i 's/static_assert(false, "RenderWindow was not defined for this platform.");/\/\//g' {} +
           find . -type f -name "plume_render_interface_types.h" -exec sed -i '1i typedef void* RenderWindow;' {} +
           find . -type f -name "plume_render_interface.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
@@ -101,7 +102,6 @@ jobs:
           cp ../native_file_to_c rt64/src/tools/file_to_c/file_to_c
           chmod +x rt64/src/tools/file_to_c/file_to_c
           
-          # Volvemos a velocidad maxima con -j4
           make -j4
 
       - name: Guardar NRO
