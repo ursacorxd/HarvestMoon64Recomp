@@ -60,8 +60,9 @@ jobs:
           find . -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           find . -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           
-          find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
-          find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
+          # --- CORREGIDO: definir WindowHandle como void* en vez de reemplazar el nombre ---
+          # (se inserta justo despues de #pragma once, sin tocar el resto del archivo)
+          find . -type f -name "renderer_context.hpp" -exec sed -i '0,/#pragma once/s//#pragma once\nnamespace ultramodern { namespace renderer { using WindowHandle = void*; } }/' {} +
           
           find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
           
@@ -73,6 +74,9 @@ jobs:
           
           find . -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
+
+          # Verificacion: debe aparecer la definicion insertada
+          grep -n "WindowHandle" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp | head
 
       - name: Compilar herramienta nativa file_to_c para el host
         run: |
@@ -91,7 +95,6 @@ jobs:
           
           cmake -G "Unix Makefiles" \
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
-            -DPLUME_BUILD_VULKAN=OFF \
             ..
           
           cp ../native_file_to_c /usr/bin/file_to_c
