@@ -1,0 +1,16 @@
+name: Build NRO
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: dkp-pacman -Sy --noconfirm && dkp-pacman -S --noconfirm switch-dev switch-sdl2 switch-tools
+      - run: mkdir build && cd build && cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake .. && make -j4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HM64Recomp-Switch
+          path: build/*.nro
