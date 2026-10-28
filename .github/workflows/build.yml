@@ -12,7 +12,7 @@ jobs:
       - name: Descargar ROM y verificar estado
         run: |
           echo "Iniciando descarga..."
-          curl -v -L -o hm64.us.z64 "TU_ENLACE_AQUI"
+          curl -v -L -o hm64.us.z64 "https://limewire.com/d/fUnMB#RcabX2FQJ3"
           
           echo "--- INFORMACIÓN DEL ARCHIVO DESCARGADO ---"
           ls -lh hm64.us.z64
