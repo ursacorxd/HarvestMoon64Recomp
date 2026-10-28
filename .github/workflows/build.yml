@@ -14,7 +14,7 @@ jobs:
         run: |
           echo "Iniciando descarga..."
           curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
-
+          
           if head -c 15 hm64.us.z64 | grep -q "<!DOCTYPE"; then
             echo "ERROR: Descargaste una pagina HTML en lugar de la ROM binaria."
             exit 1
@@ -44,27 +44,37 @@ jobs:
 
       - name: Parchear codigo C++ para Nintendo Switch
         run: |
-          # 1. Buscar los archivos de control donde sea que esten e inyectar M_PI
+          # 1. Crear un falso dlfcn.h para engañar al cargador de video de PC
+          mkdir -p mock_headers
+          echo '#pragma once' > mock_headers/dlfcn.h
+          echo '#define RTLD_LAZY 1' >> mock_headers/dlfcn.h
+          echo '#define RTLD_LOCAL 0' >> mock_headers/dlfcn.h
+          echo '#define RTLD_NOW 2' >> mock_headers/dlfcn.h
+          echo 'static inline void* dlopen(const char* f, int m) { return 0; }' >> mock_headers/dlfcn.h
+          echo 'static inline int dlclose(void* h) { return 0; }' >> mock_headers/dlfcn.h
+          echo 'static inline void* dlsym(void* h, const char* n) { return 0; }' >> mock_headers/dlfcn.h
+          echo 'static inline char* dlerror(void) { return 0; }' >> mock_headers/dlfcn.h
+          
+          # 2. Inyectar la ruta de nuestros headers falsos y dependencias de Switch en CMake
+          sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
+          sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/mock_headers")' CMakeLists.txt
+          
+          # 3. M_PI y variables de controles
           find . -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           find . -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           
-          # 2. Rutas de SDL2 y correcciones dinamicas para librerias de PC
-          sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
+          # 4. Evitar crash de ventana de escritorio (WindowHandle y Semaforos)
           find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
           find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
           find . -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
           
-          # 3. Desactivar los dialogos de escritorio (NFD)
+          # 5. Desactivar NFD
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
           mkdir build_switch && cd build_switch
-          cmake -G "Unix Makefiles" \
-            -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
-            -DPLUME_BACKEND_VULKAN=OFF \
-            -DNFD_PORT_PORTABLE=OFF \
-            ..
+          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
           make -j4
 
       - name: Guardar NRO
