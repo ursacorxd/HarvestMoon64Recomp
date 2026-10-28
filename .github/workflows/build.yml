@@ -22,7 +22,6 @@ jobs:
 
       - name: Compilar herramienta extractora (N64Recomp)
         run: |
-          # Agregamos 'lld' (el vinculador que faltaba para los parches)
           apt-get update && apt-get install -y build-essential cmake git clang lld
           git clone https://github.com/N64Recomp/N64Recomp.git recomp_tool
           cd recomp_tool
@@ -45,25 +44,24 @@ jobs:
 
       - name: Parchear codigo C++ para Nintendo Switch
         run: |
-          # 1. Inyectar soporte global para matematicas (M_PI) y rutas de SDL2
-          sed -i '1i add_compile_definitions(_USE_MATH_DEFINES)' CMakeLists.txt
-          sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
+          # 1. Definir M_PI a la fuerza inyectandolo directo en el codigo rebelde
+          sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' lib/GamepadMotionHelpers/GamepadMotion.hpp
+          sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' lib/RecompFrontend/recompinput/src/input_events.cpp
           
-          # 2. Evitar error de "WindowHandle" (La Switch no usa ventanas de PC)
+          # 2. Rutas de SDL2 y correcciones de librerias de PC
+          sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
           sed -i 's/WindowHandle/void\*/g' lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
           sed -i 's/renderer::WindowHandle/void\*/g' lib/N64ModernRuntime/ultramodern/include/ultramodern/ultramodern.hpp
-          
-          # 3. Engañar a la libreria de semaforos para que acepte a la Switch como plataforma compatible
           sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' lib/N64ModernRuntime/thirdparty/concurrentqueue/lightweightsemaphore.h
-          
-          # 4. Desactivar los dialogos de escritorio (NFD)
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
           mkdir build_switch && cd build_switch
+          # Apagamos Vulkan de PC y NFD para forzar compatibilidad Switch
           cmake -G "Unix Makefiles" \
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
+            -DPLUME_BACKEND_VULKAN=OFF \
             -DNFD_PORT_PORTABLE=OFF \
             ..
           make -j4
