@@ -10,7 +10,7 @@ jobs:
           submodules: recursive
           
       - name: Descargar ROM
-        run: curl -L -o hm64.us.z64 "https://files.catbox.moe/yzq3kd.z64"
+        run: curl -L -o hm64.us.z64 "PEGA_AQUI_TU_ENLACE_DE_CATBOX"
         
       - name: Compilar herramienta extractora (N64Recomp)
         run: |
@@ -23,7 +23,10 @@ jobs:
           
       - name: Extraer codigo fuente de la ROM
         run: |
-          # Actualizar submódulos internos del repositorio por si acaso
+          # Solucionar propiedad dudosa de Git en el contenedor
+          git config --global --add safe.directory /__w/HarvestMoon64Recomp/HarvestMoon64Recomp
+          
+          # Actualizar submódulos internos del repositorio
           git submodule update --init --recursive
           
           # Ejecutar extracción
