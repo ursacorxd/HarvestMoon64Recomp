@@ -89,10 +89,13 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
-          mkdir -p rt64/src/tools/file_to_c
-          cp ../native_file_to_c file_to_c.elf || true
+          cp ../native_file_to_c file_to_c
+          chmod +x file_to_c
           
-          # Compilacion secuencial estricta para capturar el error exacto
+          mkdir -p rt64/src/tools/file_to_c
+          cp ../native_file_to_c rt64/src/tools/file_to_c/file_to_c
+          chmod +x rt64/src/tools/file_to_c/file_to_c
+          
           make -j1
 
       - name: Guardar NRO
