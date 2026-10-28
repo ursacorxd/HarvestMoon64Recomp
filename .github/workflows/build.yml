@@ -62,6 +62,8 @@ jobs:
           
           find . -type f -name "renderer_context.hpp" -exec sed -i 's/WindowHandle/void\*/g' {} +
           find . -type f -name "ultramodern.hpp" -exec sed -i 's/renderer::WindowHandle/void\*/g' {} +
+          
+          find . -type f -name "plume_render_interface_types.h" -exec sed -i '1i typedef void* RenderWindow;' {} +
           find . -type f -name "plume_render_interface.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
           find . -type f -name "plume_vulkan.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
           find . -type f -name "plume_vulkan.cpp" -exec sed -i 's/RenderWindow/void\*/g' {} +
@@ -89,19 +91,12 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
-          # Hack maestro: Modificamos el archivo de reglas de CMake para que, 
-          # en lugar de intentar compilar file_to_c con el compilador de Switch, 
-          # simplemente copie nuestro binario nativo ya hecho.
-          find . -name "file_to_c.dir" -type d | while read dir; do
-            echo '#!/bin/sh' > "$dir/../../../../native_file_to_c_wrapper"
-          done
+          cp ../native_file_to_c file_to_c
+          chmod +x file_to_c
           
-          # Forzamos la sustitucion directa del objetivo file_to_c en el Makefile generado
-          sed -i 's|file_to_c\.elf|../native_file_to_c|g' CMakeFiles/PatchesLib.dir/build.make || true
-          sed -i 's|file_to_c$|../native_file_to_c|g' CMakeFiles/PatchesLib.dir/build.make || true
-          
-          # Creamos un enlace directo con el nombre exacto que espera el script de parches
-          ln -sf ../native_file_to_c file_to_c
+          mkdir -p rt64/src/tools/file_to_c
+          cp ../native_file_to_c rt64/src/tools/file_to_c/file_to_c
+          chmod +x rt64/src/tools/file_to_c/file_to_c
           
           make -j4
 
