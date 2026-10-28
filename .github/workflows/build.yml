@@ -15,9 +15,6 @@ jobs:
           echo "Iniciando descarga..."
           curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
           
-          echo "--- INFORMACIÓN DEL ARCHIVO DESCARGADO ---"
-          ls -lh hm64.us.z64
-          
           if head -c 15 hm64.us.z64 | grep -q "<!DOCTYPE"; then
             echo "ERROR: Descargaste una pagina HTML en lugar de la ROM binaria."
             exit 1
@@ -25,8 +22,8 @@ jobs:
 
       - name: Compilar herramienta extractora (N64Recomp)
         run: |
-          # Agregamos clang a la lista de instalación
-          apt-get update && apt-get install -y build-essential cmake git clang
+          # Agregamos 'lld' (el vinculador que faltaba para los parches)
+          apt-get update && apt-get install -y build-essential cmake git clang lld
           git clone https://github.com/N64Recomp/N64Recomp.git recomp_tool
           cd recomp_tool
           git submodule update --init --recursive
@@ -38,30 +35,35 @@ jobs:
           git config --global --add safe.directory /__w/HarvestMoon64Recomp/HarvestMoon64Recomp
           git submodule update --init --recursive
           
-          echo "Extrayendo juego principal..."
           ./recomp_tool/build/N64Recomp hm64.us.toml
           
-          echo "Extrayendo microcodigo de audio/video (RSP)..."
           if [ -f "./recomp_tool/build/RSPRecomp" ]; then
             ./recomp_tool/build/RSPRecomp n_aspMain.toml
           else
             ./recomp_tool/build/N64Recomp n_aspMain.toml
           fi
 
-      - name: Arreglar error de lenguaje en NFD
+      - name: Parchear codigo C++ para Nintendo Switch
         run: |
+          # 1. Inyectar soporte global para matematicas (M_PI) y rutas de SDL2
+          sed -i '1i add_compile_definitions(_USE_MATH_DEFINES)' CMakeLists.txt
+          sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
+          
+          # 2. Evitar error de "WindowHandle" (La Switch no usa ventanas de PC)
+          sed -i 's/WindowHandle/void\*/g' lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
+          sed -i 's/renderer::WindowHandle/void\*/g' lib/N64ModernRuntime/ultramodern/include/ultramodern/ultramodern.hpp
+          
+          # 3. Engañar a la libreria de semaforos para que acepte a la Switch como plataforma compatible
+          sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' lib/N64ModernRuntime/thirdparty/concurrentqueue/lightweightsemaphore.h
+          
+          # 4. Desactivar los dialogos de escritorio (NFD)
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
           mkdir build_switch && cd build_switch
-          # Agregamos las rutas exactas (-I) para que encuentre los archivos de controles SDL2
           cmake -G "Unix Makefiles" \
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
-            -DCMAKE_C_FLAGS="-I/opt/devkitpro/portlibs/switch/include/SDL2" \
-            -DCMAKE_CXX_FLAGS="-I/opt/devkitpro/portlibs/switch/include/SDL2" \
-            -DCMAKE_LINKER=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-ld \
-            -DCMAKE_CXX_LINK_EXECUTABLE="/opt/devkitpro/devkitA64/bin/aarch64-none-elf-g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>" \
             -DNFD_PORT_PORTABLE=OFF \
             ..
           make -j4
