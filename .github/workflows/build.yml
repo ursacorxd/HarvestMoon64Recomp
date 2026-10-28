@@ -89,11 +89,16 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
-          cp ../native_file_to_c file_to_c
+          # Creamos un script puente (wrapper) en lugar de un binario estático 
+          # para que cuando CMake invoque 'file_to_c', este ejecute nuestro nativo de PC
+          echo '#!/bin/sh' > file_to_c
+          echo '../native_file_to_c "$@"' >> file_to_c
           chmod +x file_to_c
           
+          # Hacemos lo mismo en la subruta de herramientas por seguridad
           mkdir -p rt64/src/tools/file_to_c
-          cp ../native_file_to_c rt64/src/tools/file_to_c/file_to_c
+          echo '#!/bin/sh' > rt64/src/tools/file_to_c/file_to_c
+          echo '../../../../native_file_to_c "$@"' >> rt64/src/tools/file_to_c/file_to_c
           chmod +x rt64/src/tools/file_to_c/file_to_c
           
           make -j1
