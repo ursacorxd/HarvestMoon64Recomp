@@ -102,8 +102,9 @@ jobs:
           cp ../native_file_to_c rt64/src/tools/file_to_c/file_to_c
           chmod +x rt64/src/tools/file_to_c/file_to_c
           
-          make -j4
-
+          # Modo verbose activado para ver el comando exacto del fallo final
+          make VERBOSE=1 -j1
+          
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
         with:
