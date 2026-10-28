@@ -13,7 +13,7 @@ jobs:
       - name: Descargar ROM y verificar estado
         run: |
           echo "Iniciando descarga..."
-          curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
+          curl -L -o hm64.us.z64 ""https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0""
           
           if head -c 15 hm64.us.z64 | grep -q "<!DOCTYPE"; then
             echo "ERROR: Descargaste una pagina HTML en lugar de la ROM binaria."
@@ -71,8 +71,9 @@ jobs:
 
       - name: Compilar herramienta nativa file_to_c para el host
         run: |
-          # Compilamos file_to_c de forma nativa para x86_64 para que pueda correr en el runner
-          g++ -O3 rt64/src/tools/file_to_c/file_to_c.cpp -o native_file_to_c
+          FILE_PATH=$(find . -type f -name "file_to_c.cpp")
+          echo "Encontrado en: $FILE_PATH"
+          g++ -O3 "$FILE_PATH" -o native_file_to_c
 
       - name: Compilar juego nativo de Switch (.nro)
         run: |
@@ -88,11 +89,9 @@ jobs:
             -DPLUME_BUILD_VULKAN=OFF \
             ..
           
-          # Construimos primero file_to_c y lo reemplazamos por nuestra version nativa
           make file_to_c
           cp ../native_file_to_c file_to_c.elf
           
-          # Continuamos con el resto de la compilacion
           make -j4
 
       - name: Guardar NRO
