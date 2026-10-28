@@ -10,7 +10,7 @@ jobs:
           submodules: recursive
           
       - name: Descargar ROM
-        run: curl -L -o hm64.us.z64 "PEGA_AQUI_TU_ENLACE_DE_CATBOX"
+        run: curl -L -o hm64.us.z64 "https://files.catbox.moe/yzq3kd.z64"
         
       - name: Compilar herramienta extractora (N64Recomp)
         run: |
