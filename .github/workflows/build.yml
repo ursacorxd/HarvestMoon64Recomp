@@ -60,9 +60,8 @@ jobs:
           find . -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           find . -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           
-          # --- CORREGIDO: definir WindowHandle como void* en vez de reemplazar el nombre ---
-          # (se inserta justo despues de #pragma once, sin tocar el resto del archivo)
-          find . -type f -name "renderer_context.hpp" -exec sed -i '0,/#pragma once/s//#pragma once\nnamespace ultramodern { namespace renderer { using WindowHandle = void*; } }/' {} +
+          # WindowHandle solo se define para Win32/Linux/Android/Apple; en Switch usamos SDL_Window* igual que Linux
+          find . -type f -name "renderer_context.hpp" -exec sed -i 's/#elif defined(__linux__) || defined(__ANDROID__)/#elif defined(__linux__) || defined(__ANDROID__) || defined(__SWITCH__)/' {} +
           
           find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
           
