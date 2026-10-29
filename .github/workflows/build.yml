@@ -53,6 +53,35 @@ jobs:
           echo 'static inline int dlclose(void* h) { return 0; }' >> mock_headers/dlfcn.h
           echo 'static inline void* dlsym(void* h, const char* n) { return 0; }' >> mock_headers/dlfcn.h
           echo 'static inline char* dlerror(void) { return 0; }' >> mock_headers/dlfcn.h
+
+          # Switch no tiene sys/mman.h: emular mmap de solo lectura leyendo el archivo a memoria
+          mkdir -p mock_headers/sys
+          cat > mock_headers/sys/mman.h << 'EOF'
+          #pragma once
+          #include <stdlib.h>
+          #include <unistd.h>
+          #include <sys/types.h>
+          #define PROT_NONE 0
+          #define PROT_READ 1
+          #define PROT_WRITE 2
+          #define MAP_SHARED 1
+          #define MAP_PRIVATE 2
+          #define MAP_FAILED ((void*)-1)
+          static inline void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t off) {
+              (void)addr; (void)prot; (void)flags;
+              char* p = (char*)malloc(len ? len : 1);
+              if (!p) return MAP_FAILED;
+              if (lseek(fd, off, SEEK_SET) < 0) { free(p); return MAP_FAILED; }
+              size_t got = 0;
+              while (got < len) {
+                  ssize_t r = read(fd, p + got, len - got);
+                  if (r <= 0) { free(p); return MAP_FAILED; }
+                  got += (size_t)r;
+              }
+              return p;
+          }
+          static inline int munmap(void* addr, size_t len) { (void)len; free(addr); return 0; }
+          EOF
           
           sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
           sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/mock_headers")' CMakeLists.txt
