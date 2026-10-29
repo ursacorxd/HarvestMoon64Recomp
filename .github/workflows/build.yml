@@ -74,6 +74,8 @@ jobs:
           find . -type f -name "plume_vulkan.cpp" -exec sed -i 's/RenderWindow/void\*/g' {} +
           
           find . -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
+          # dxc se ejecuta en el host (x86_64), no en la Switch: elegir el binario segun la arquitectura del host
+          sed -i 's/CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"/CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"/g' lib/rt64/CMakeLists.txt
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
 
           # Verificacion: debe aparecer la definicion insertada
