@@ -1,6 +1,6 @@
 name: Build NRO
 on: [workflow_dispatch]
-"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"
+
 jobs:
   build:
     runs-on: ubuntu-latest
