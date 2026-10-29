@@ -96,6 +96,7 @@ jobs:
           
           cmake -G "Unix Makefiles" \
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
+            -DFMT_OS=OFF \
             ..
           
           cp ../native_file_to_c /usr/bin/file_to_c
