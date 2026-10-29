@@ -64,6 +64,7 @@ jobs:
           #define PROT_NONE 0
           #define PROT_READ 1
           #define PROT_WRITE 2
+          #define PROT_EXEC 4
           #define MAP_SHARED 1
           #define MAP_PRIVATE 2
           #define MAP_FAILED ((void*)-1)
@@ -103,6 +104,8 @@ jobs:
           find . -type f -name "plume_vulkan.cpp" -exec sed -i 's/RenderWindow/void\*/g' {} +
           
           find . -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
+          # rt64_thread: nombre/prioridad de hilo sin implementar en Switch -> no-op
+          sed -i 's/static_assert(false, "Unimplemented");/(void)0;/' lib/rt64/src/common/rt64_thread.cpp
           # dxc se ejecuta en el host (x86_64), no en la Switch: elegir el binario segun la arquitectura del host
           sed -i 's/CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"/CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"/g' lib/rt64/CMakeLists.txt
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
