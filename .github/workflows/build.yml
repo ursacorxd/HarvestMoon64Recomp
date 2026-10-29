@@ -56,6 +56,8 @@ jobs:
           
           sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
           sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/mock_headers")' CMakeLists.txt
+          # newlib (Switch) tiene FILE::_p, asi que fmt elige la ruta de Apple y usa putc_unlocked, que no existe aqui
+          sed -i '1i add_compile_definitions(FMT_USE_FALLBACK_FILE=1)' CMakeLists.txt
           
           find . -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
           find . -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
