@@ -20,7 +20,19 @@ jobs:
             exit 1
           fi
 
+      # Configurar caché para N64Recomp y el código fuente ya extraído
+      - name: Restaurar caché de Recompilación
+        id: cache-recomp
+        uses: actions/cache@v4
+        with:
+          path: |
+            recomp_tool/
+            gamedata_extracted/
+            # Agrega aquí las rutas donde se genere el código C++ resultante de la recompilación
+          key: recomp-data-${{ hashFiles('hm64.us.toml', 'hm64.us.z64') }}
+
       - name: Compilar herramienta extractora (N64Recomp)
+        if: steps.cache-recomp.outputs.cache-hit != 'true'
         run: |
           apt-get update && apt-get install -y build-essential cmake git clang lld
           git clone https://github.com/N64Recomp/N64Recomp.git recomp_tool
@@ -30,6 +42,7 @@ jobs:
           cmake --build build -j4
 
       - name: Extraer codigo fuente de la ROM y RSP
+        if: steps.cache-recomp.outputs.cache-hit != 'true'
         run: |
           git config --global --add safe.directory /__w/HarvestMoon64Recomp/HarvestMoon64Recomp
           git submodule update --init --recursive
@@ -109,9 +122,6 @@ jobs:
           # dxc se ejecuta en el host (x86_64), no en la Switch: elegir el binario segun la arquitectura del host
           sed -i 's/CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"/CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"/g' lib/rt64/CMakeLists.txt
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
-
-          # Verificacion: debe aparecer la definicion insertada
-          grep -n "WindowHandle" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp | head
 
       - name: Compilar herramienta nativa file_to_c para el host
         run: |
