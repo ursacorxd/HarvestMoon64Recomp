@@ -1,0 +1,47 @@
+name: deko3d test
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'switch/deko3d_test/**'
+      - '.github/workflows/deko3d-test.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # Solo hace falta dxc, que viene dentro de rt64
+          git submodule update --init lib/rt64
+          git -C lib/rt64 submodule update --init src/contrib/dxc
+          apt-get update
+          apt-get install -y spirv-cross
+          # deko3d y uam vienen en switch-dev; asegurar que esten instalados
+          dkp-pacman -Sy --noconfirm --needed switch-dev
+          ls -l "$DEVKITPRO/libnx/lib" | grep -i deko3d || ls -l "$DEVKITPRO"/portlibs/switch/lib | grep -i deko3d
+          ls -l "$DEVKITPRO/tools/bin/uam"
+
+      - name: Compilar shaders (HLSL -> SPIR-V -> GLSL -> DKSH)
+        run: |
+          DXC_DIR="$GITHUB_WORKSPACE/lib/rt64/src/contrib/dxc"
+          export LD_LIBRARY_PATH="$DXC_DIR/lib/x64"
+          export DXC="$DXC_DIR/bin/x64/dxc-linux"
+          export UAM="$DEVKITPRO/tools/bin/uam"
+          chmod +x "$DXC"
+          sh switch/deko3d_test/build_shaders.sh
+
+      - name: Compilar NRO
+        run: make -C switch/deko3d_test
+
+      - name: Guardar NRO
+        uses: actions/upload-artifact@v4
+        with:
+          name: deko3d_test
+          path: |
+            switch/deko3d_test/deko3d_test.nro
+            switch/deko3d_test/build/shaders/*.glsl
