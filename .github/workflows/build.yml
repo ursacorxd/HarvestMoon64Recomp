@@ -151,6 +151,25 @@ jobs:
               return p;
           }
           static inline int munmap(void* addr, size_t len) { (void)len; free(addr); return 0; }
+          // Switch no permite cambiar permisos de memoria: no-op (el parcheo de funciones por mods no funcionara)
+          static inline int mprotect(void* addr, size_t len, int prot) { (void)addr; (void)len; (void)prot; return 0; }
+          EOF
+
+          # newlib no tiene timegm: version propia (UTC, algoritmo days_from_civil)
+          cat > mock_headers/timegm_compat.h << 'EOF'
+          #pragma once
+          #include <time.h>
+          static inline time_t hm64_timegm(const struct tm* t) {
+              long long y = t->tm_year + 1900LL;
+              int m = t->tm_mon + 1;
+              y -= m <= 2;
+              long long era = (y >= 0 ? y : y - 399) / 400;
+              long long yoe = y - era * 400;
+              long long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + t->tm_mday - 1;
+              long long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+              long long days = era * 146097 + doe - 719468;
+              return (time_t)(days * 86400 + t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec);
+          }
           EOF
 
           sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
@@ -196,6 +215,17 @@ jobs:
           sed -i 's/^#include <stdlib.h>$/#include <stdlib.h>\n#include <malloc.h>/' $SSE2NEON
           sed -i 's/if (!posix_memalign(&ptr, align, size))/if ((ptr = memalign(align, size)) != NULL)/' $SSE2NEON
           grep -q "ptr = memalign(align, size)" $SSE2NEON
+
+          # librecomp/mods.cpp: getpagesize no esta declarado en Switch (mprotect lo cubre mock_headers/sys/mman.h)
+          MODS=lib/N64ModernRuntime/librecomp/src/mods.cpp
+          sed -i 's/getpagesize()/0x1000/g' $MODS
+          if grep -q "getpagesize" $MODS; then exit 1; fi
+
+          # implot: usar hm64_timegm en lugar de timegm
+          IMPLOT=lib/rt64/src/contrib/implot/implot.cpp
+          sed -i '1i #include "timegm_compat.h"' $IMPLOT
+          sed -i 's/t.S = timegm(ptm);/t.S = hm64_timegm(ptm);/' $IMPLOT
+          grep -q "hm64_timegm(ptm)" $IMPLOT
 
           # Verificacion: debe aparecer la definicion insertada
           grep -n "__SWITCH__" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
