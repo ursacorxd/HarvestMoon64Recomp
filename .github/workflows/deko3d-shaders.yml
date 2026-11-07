@@ -22,7 +22,8 @@ jobs:
           echo "SPIRV_CROSS_COMMIT=$(git -C lib/rt64 rev-parse HEAD:src/contrib/spirv-cross)" >> "$GITHUB_ENV"
           apt-get update
           apt-get install -y build-essential cmake python3
-          dkp-pacman -Sy --noconfirm --needed switch-dev
+          # deko3d y uam ya vienen en la imagen (pkg.devkitpro.org bloquea a GitHub Actions)
+          ls -l "$DEVKITPRO/tools/bin/uam"
 
       # Mismos structs en CPU y GPU, con float3 alineados para que GLSL pueda expresarlos
       - name: Aplicar parche de layout a RT64

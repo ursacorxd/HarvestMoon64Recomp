@@ -21,8 +21,7 @@ jobs:
           git -C lib/rt64 submodule update --init src/contrib/dxc
           apt-get update
           apt-get install -y spirv-cross
-          # deko3d y uam vienen en switch-dev; asegurar que esten instalados
-          dkp-pacman -Sy --noconfirm --needed switch-dev
+          # deko3d y uam ya vienen en la imagen (pkg.devkitpro.org bloquea a GitHub Actions)
           ls -l "$DEVKITPRO/libnx/lib" | grep -i deko3d || ls -l "$DEVKITPRO"/portlibs/switch/lib | grep -i deko3d
           ls -l "$DEVKITPRO/tools/bin/uam"
 
