@@ -1,0 +1,67 @@
+name: deko3d shaders
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'switch/deko3d_shaders/**'
+      - '.github/workflows/deko3d-shaders.yml'
+
+jobs:
+  survey:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git submodule update --init lib/rt64 lib/RecompFrontend
+          git -C lib/rt64 submodule update --init src/contrib/dxc src/contrib/spirv-cross
+          echo "SPIRV_CROSS_COMMIT=$(git -C lib/rt64 rev-parse HEAD:src/contrib/spirv-cross)" >> "$GITHUB_ENV"
+          apt-get update
+          apt-get install -y build-essential cmake python3
+          dkp-pacman -Sy --noconfirm --needed switch-dev
+
+      # spirv-cross fijado por RT64 (el mismo que usa su backend de Metal)
+      - name: Restaurar spirv-cross desde cache
+        id: cache-spvc
+        uses: actions/cache/restore@v4
+        with:
+          path: spirv-cross-bin
+          key: spirv-cross-${{ env.SPIRV_CROSS_COMMIT }}
+
+      - name: Compilar spirv-cross
+        if: steps.cache-spvc.outputs.cache-hit != 'true'
+        run: |
+          cmake -S lib/rt64/src/contrib/spirv-cross -B /tmp/spvc -DCMAKE_BUILD_TYPE=Release \
+            -DSPIRV_CROSS_CLI=ON -DSPIRV_CROSS_ENABLE_TESTS=OFF -DSPIRV_CROSS_SHARED=OFF
+          cmake --build /tmp/spvc --target spirv-cross -j"$(nproc)"
+          mkdir -p spirv-cross-bin
+          cp /tmp/spvc/spirv-cross spirv-cross-bin/
+
+      - name: Guardar spirv-cross en cache
+        if: steps.cache-spvc.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: spirv-cross-bin
+          key: spirv-cross-${{ env.SPIRV_CROSS_COMMIT }}
+
+      - name: Censo de shaders
+        run: |
+          DXC_DIR="$GITHUB_WORKSPACE/lib/rt64/src/contrib/dxc"
+          chmod +x "$DXC_DIR/bin/x64/dxc-linux"
+          LD_LIBRARY_PATH="$DXC_DIR/lib/x64" python3 -I switch/deko3d_shaders/survey.py \
+            --rt64 lib/rt64 \
+            --recompui lib/RecompFrontend/recompui \
+            --dxc "$DXC_DIR/bin/x64/dxc-linux" \
+            --spirv-cross "$GITHUB_WORKSPACE/spirv-cross-bin/spirv-cross" \
+            --uam "$DEVKITPRO/tools/bin/uam" \
+            --out shader-survey
+
+      - name: Guardar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shader-survey
+          path: shader-survey
