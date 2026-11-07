@@ -3,7 +3,6 @@ on: [workflow_dispatch]
 
 env:
   ROM_ID: 1Z_24D59F1e-s_RuWfim34DTRETZbWcz0
-  CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 2G
   CCACHE_COMPRESS: "true"
 
@@ -19,6 +18,8 @@ jobs:
       - name: Instalar dependencias del host
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # github.workspace apunta a la ruta del host, no a la del contenedor
+          echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> "$GITHUB_ENV"
           apt-get update
           # clang/lld: compilan patches.elf (MIPS). ccache: cache de compilacion. zstd: comprime las caches
           apt-get install -y build-essential cmake git clang lld ccache zstd
@@ -64,7 +65,7 @@ jobs:
         if: steps.cache-tool.outputs.cache-hit != 'true'
         run: |
           cmake -S lib/N64ModernRuntime/N64Recomp -B recomp_tool/build -DCMAKE_BUILD_TYPE=Release
-          cmake --build recomp_tool/build --target N64Recomp RSPRecomp -j"$(nproc)"
+          cmake --build recomp_tool/build --target N64RecompCLI RSPRecomp -j"$(nproc)"
 
       # ---------- Codigo extraido de la ROM ----------
       - name: Restaurar codigo extraido desde cache
