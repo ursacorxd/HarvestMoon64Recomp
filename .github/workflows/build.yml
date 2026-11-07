@@ -136,9 +136,16 @@ jobs:
           #define PROT_EXEC 4
           #define MAP_SHARED 1
           #define MAP_PRIVATE 2
+          #define MAP_ANON 0x20
+          #define MAP_ANONYMOUS MAP_ANON
           #define MAP_FAILED ((void*)-1)
           static inline void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t off) {
-              (void)addr; (void)prot; (void)flags;
+              (void)addr; (void)prot;
+              // Mapeo anonimo: memoria a cero, como mmap real
+              if (flags & MAP_ANON) {
+                  void* a = calloc(len ? len : 1, 1);
+                  return a ? a : MAP_FAILED;
+              }
               char* p = (char*)malloc(len ? len : 1);
               if (!p) return MAP_FAILED;
               if (lseek(fd, off, SEEK_SET) < 0) { free(p); return MAP_FAILED; }
@@ -226,6 +233,14 @@ jobs:
           sed -i '1i #include "timegm_compat.h"' $IMPLOT
           sed -i 's/t.S = timegm(ptm);/t.S = hm64_timegm(ptm);/' $IMPLOT
           grep -q "hm64_timegm(ptm)" $IMPLOT
+
+          # librecomp/recomp.cpp: reservar solo los 512 MB usados de RDRAM en vez de 4 GB
+          # (Switch no permite reservar espacio de direcciones; se pierde la zona de guarda)
+          RECOMP=lib/N64ModernRuntime/librecomp/src/recomp.cpp
+          sed -i 's/mmap(NULL, allocation_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0)/mmap(NULL, mem_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0)/' $RECOMP
+          sed -i 's/munmap(rdram, allocation_size)/munmap(rdram, mem_size)/g' $RECOMP
+          grep -q "mmap(NULL, mem_size," $RECOMP
+          test "$(grep -c "munmap(rdram, mem_size)" $RECOMP)" = 2
 
           # Verificacion: debe aparecer la definicion insertada
           grep -n "__SWITCH__" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
