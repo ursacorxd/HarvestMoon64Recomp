@@ -26,10 +26,13 @@ jobs:
           # Commit de N64Recomp fijado por N64ModernRuntime (debe coincidir con los headers que usa el juego)
           echo "N64RECOMP_COMMIT=$(git -C lib/N64ModernRuntime rev-parse HEAD:N64Recomp)" >> "$GITHUB_ENV"
 
+      # Las caches usan restore/save por separado: cada una se guarda en cuanto
+      # su paso termina, aunque la compilacion falle despues.
+
       # ---------- ROM ----------
       - name: Restaurar ROM desde cache
         id: cache-rom
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: hm64.us.z64
           key: rom-${{ env.ROM_ID }}
@@ -51,10 +54,17 @@ jobs:
           fi
           sha1sum hm64.us.z64
 
+      - name: Guardar ROM en cache
+        if: steps.cache-rom.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: hm64.us.z64
+          key: ${{ steps.cache-rom.outputs.cache-primary-key }}
+
       # ---------- N64Recomp / RSPRecomp (herramientas del host) ----------
       - name: Restaurar N64Recomp desde cache
         id: cache-tool
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             recomp_tool/build/N64Recomp
@@ -67,10 +77,19 @@ jobs:
           cmake -S lib/N64ModernRuntime/N64Recomp -B recomp_tool/build -DCMAKE_BUILD_TYPE=Release
           cmake --build recomp_tool/build --target N64RecompCLI RSPRecomp -j"$(nproc)"
 
+      - name: Guardar N64Recomp en cache
+        if: steps.cache-tool.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            recomp_tool/build/N64Recomp
+            recomp_tool/build/RSPRecomp
+          key: ${{ steps.cache-tool.outputs.cache-primary-key }}
+
       # ---------- Codigo extraido de la ROM ----------
       - name: Restaurar codigo extraido desde cache
         id: cache-extract
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             RecompiledFuncs/
@@ -82,6 +101,15 @@ jobs:
         run: |
           ./recomp_tool/build/N64Recomp hm64.us.toml
           ./recomp_tool/build/RSPRecomp n_aspMain.toml
+
+      - name: Guardar codigo extraido en cache
+        if: steps.cache-extract.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            RecompiledFuncs/
+            rsp/n_aspMain.cpp
+          key: ${{ steps.cache-extract.outputs.cache-primary-key }}
 
       - name: Parchear codigo C++ para Nintendo Switch
         run: |
@@ -154,6 +182,21 @@ jobs:
           sed -i 's/CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"/CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"/g' lib/rt64/CMakeLists.txt
           echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt
 
+          # rt64_application_window: en Switch la ventana es un SDL_Window* (mismo camino que Linux/SDL)
+          APPWIN=lib/rt64/src/hle/rt64_application_window.cpp
+          sed -i 's/#   elif defined(__linux__) || defined(__APPLE__)$/#   elif defined(__linux__) || defined(__APPLE__) || defined(__SWITCH__)/' $APPWIN
+          sed -i '0,/^#   elif defined(RT64_SDL_WINDOW_VULKAN)$/s//#   elif defined(RT64_SDL_WINDOW_VULKAN) || defined(__SWITCH__)/' $APPWIN
+          # pthread_t es un puntero en Switch; threadId solo se usa en Windows
+          sed -i 's/setup(windowHandle, listener, pthread_self());/setup(windowHandle, listener, (uint32_t)(uintptr_t)pthread_self());/' $APPWIN
+          grep -c "__SWITCH__" $APPWIN | grep -qx 2
+          grep -q "(uintptr_t)pthread_self()" $APPWIN
+
+          # sse2neon: newlib no declara posix_memalign en modo C++ estricto; memalign esta siempre en <malloc.h>
+          SSE2NEON=lib/N64ModernRuntime/thirdparty/sse2neon/sse2neon.h
+          sed -i 's/^#include <stdlib.h>$/#include <stdlib.h>\n#include <malloc.h>/' $SSE2NEON
+          sed -i 's/if (!posix_memalign(&ptr, align, size))/if ((ptr = memalign(align, size)) != NULL)/' $SSE2NEON
+          grep -q "ptr = memalign(align, size)" $SSE2NEON
+
           # Verificacion: debe aparecer la definicion insertada
           grep -n "__SWITCH__" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
 
@@ -165,7 +208,8 @@ jobs:
 
       # ---------- Cache de compilacion (ccache) ----------
       - name: Restaurar cache de compilacion (ccache)
-        uses: actions/cache@v4
+        id: ccache-restore
+        uses: actions/cache/restore@v4
         with:
           path: .ccache
           key: ccache-switch-${{ github.sha }}-${{ github.run_id }}
@@ -189,6 +233,14 @@ jobs:
             -DZSTD_BUILD_PROGRAMS=OFF
           cmake --build build_switch -j"$(nproc)"
           ccache --show-stats
+
+      # Se guarda aunque la compilacion falle, para no perder los objetos ya compilados
+      - name: Guardar cache de compilacion (ccache)
+        if: always() && steps.ccache-restore.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
 
       - name: Empaquetar NRO
         run: |
