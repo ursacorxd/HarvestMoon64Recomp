@@ -250,6 +250,16 @@ jobs:
           grep -q "return false;" $MODINST
           if grep -q 'static_assert(false, "Unimplemented for this platform.")' $MODINST; then exit 1; fi
 
+          # recompui/ui_mod_menu.cpp: Switch no tiene explorador de archivos -> abrir carpeta de mods es no-op
+          MODMENU=lib/RecompFrontend/recompui/src/composites/ui_mod_menu.cpp
+          sed -i 's/static_assert(false, "Not implemented for this platform.");/(void)mods_directory;/' $MODMENU
+          grep -q "(void)mods_directory;" $MODMENU
+          if grep -q 'static_assert(false, "Not implemented for this platform.")' $MODMENU; then exit 1; fi
+
+          # main.cpp: create_window devuelve SDL_Window* en Switch, igual que Linux
+          sed -i 's/^#elif defined(__linux__) || defined(__ANDROID__)$/#elif defined(__linux__) || defined(__ANDROID__) || defined(__SWITCH__)/' src/main/main.cpp
+          grep -q "defined(__ANDROID__) || defined(__SWITCH__)" src/main/main.cpp
+
           # Verificacion: debe aparecer la definicion insertada
           grep -n "__SWITCH__" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
 
