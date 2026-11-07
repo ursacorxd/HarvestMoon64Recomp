@@ -244,6 +244,12 @@ jobs:
           grep -q "mmap(NULL, mem_size," $RECOMP
           test "$(grep -c "munmap(rdram, mem_size)" $RECOMP)" = 2
 
+          # recompui/ui_mod_installer.cpp: Switch no carga librerias dinamicas -> ningun archivo lo es
+          MODINST=lib/RecompFrontend/recompui/src/composites/ui_mod_installer.cpp
+          sed -i 's/static_assert(false, "Unimplemented for this platform.");/return false;/' $MODINST
+          grep -q "return false;" $MODINST
+          if grep -q 'static_assert(false, "Unimplemented for this platform.")' $MODINST; then exit 1; fi
+
           # Verificacion: debe aparecer la definicion insertada
           grep -n "__SWITCH__" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
 
