@@ -180,6 +180,8 @@ jobs:
           EOF
 
           sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
+          # Para los #include <SDL2/...> (recompui); la linea anterior cubre los #include <SDL.h>
+          sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include")' CMakeLists.txt
           sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/mock_headers")' CMakeLists.txt
           # newlib (Switch) tiene FILE::_p, asi que fmt elige la ruta de Apple y usa putc_unlocked, que no existe aqui
           sed -i '1i add_compile_definitions(FMT_USE_FALLBACK_FILE=1)' CMakeLists.txt
