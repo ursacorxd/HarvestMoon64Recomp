@@ -20,6 +20,10 @@ STAGES = {
 }
 # build_ray_shader y build_library_shader son de raytracing/DXIL: no aplican en Switch
 CALL_RE = re.compile(r"^\s*build_(pixel|vertex|compute)_shader(_spec_constants)?\s*\(\s*(\w+)\s+(.*)\)\s*$")
+# Shaders que no se usaran en Switch; el backend les dara un shader de reemplazo
+EXCLUDED = {
+    "DebugPS": "vista de depuracion del raytracing: usa 16 imagenes y deko3d admite 8",
+}
 
 
 def parse_calls(cmake_path, project_root):
@@ -79,6 +83,10 @@ def main():
         base = args.out / s["name"]
         dxc_opts, uam_stage = STAGES[s["stage"]]
         status, detail = "ok", ""
+        if s["name"] in EXCLUDED:
+            results.append((s, "excluido", EXCLUDED[s["name"]]))
+            print(f"[   excluido] {s['name']}: {EXCLUDED[s['name']]}", flush=True)
+            continue
 
         ok, log = run([args.dxc] + DXC_SPV_OPTS + dxc_opts + ["-I", str(s["include"])] + s["defines"]
                       + [str(s["src"]), "-Fo", f"{base}.spv"])
@@ -99,9 +107,10 @@ def main():
         if detail:
             print("    " + detail.replace("\n", "\n    "), flush=True)
 
-    total = len(results)
+    excluded = sum(1 for _, st, _ in results if st == "excluido")
+    total = len(results) - excluded
     passed = sum(1 for _, st, _ in results if st == "ok")
-    lines = [f"## Censo de shaders deko3d: {passed}/{total} compilan", "",
+    lines = [f"## Censo de shaders deko3d: {passed}/{total} compilan ({excluded} excluidos)", "",
              "| Shader | Etapa | Falla en | Primer error |", "|---|---|---|---|"]
     for s, st, detail in results:
         err = detail.splitlines()[0].replace("|", "\\|")[:160] if detail else ""
@@ -111,7 +120,7 @@ def main():
     if "GITHUB_STEP_SUMMARY" in os.environ:
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
             f.write(summary)
-    print(f"\n{passed}/{total} shaders compilan")
+    print(f"\n{passed}/{total} shaders compilan ({excluded} excluidos)")
 
 
 if __name__ == "__main__":

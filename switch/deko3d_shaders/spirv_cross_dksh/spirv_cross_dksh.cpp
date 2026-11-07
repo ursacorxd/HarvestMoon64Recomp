@@ -95,12 +95,27 @@ void checkLimit(uint32_t used, uint32_t limit, const char* kind) {
     }
 }
 
+// dxc marca los indices con NonUniformResourceIndex y spirv-cross pide GL_NV_gpu_shader5 para
+// GLSL de escritorio, que uam no soporta. Con handles bindless el calificador no hace falta.
+// Solo se quita el #extension suelto: los que van tras "#elif defined(...)" son opcionales.
+std::string removeNonUniform(std::string source) {
+    const std::string extension = "#extension GL_NV_gpu_shader5 : require\n";
+    const std::string guard = "#elif defined(GL_NV_gpu_shader5)\n";
+    size_t pos = 0;
+    while ((pos = source.find(extension, pos)) != std::string::npos) {
+        bool guarded = pos >= guard.size() && source.compare(pos - guard.size(), guard.size(), guard) == 0;
+        if (guarded) {
+            pos += extension.size();
+        }
+        else {
+            source.erase(pos, extension.size());
+        }
+    }
+    return source;
+}
+
 // Sustituye cada DkBindless<k>[expr] por un sampler construido desde un handle bindless
 std::string rewriteBindless(std::string source, uint32_t count) {
-    // dxc marca los indices con NonUniformResourceIndex; los handles bindless no lo necesitan
-    source = std::regex_replace(source, std::regex("#extension GL_EXT_nonuniform_qualifier : require\n"), "");
-    source = std::regex_replace(source, std::regex("nonuniformEXT\\("), "(");
-
     for (uint32_t k = 0; k < count; k++) {
         std::string name = BindlessPrefix + std::to_string(k);
         std::regex declRegex("(layout\\([^)]*\\) )?uniform (\\w+) " + name + "\\[\\d*\\];\n");
@@ -226,7 +241,7 @@ int main(int argc, char* argv[]) {
             map << "bindless_info " << BindlessInfoSlot << "\n";
         }
 
-        std::string source = rewriteBindless(glsl.compile(), bindlessCount);
+        std::string source = rewriteBindless(removeNonUniform(glsl.compile()), bindlessCount);
         writeFile(argv[2], source);
         writeFile(argv[3], map.str());
         return 0;
