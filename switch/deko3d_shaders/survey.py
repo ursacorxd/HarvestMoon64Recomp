@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Pasa todos los shaders de RT64 y recompui por la cadena del backend deko3d
-(HLSL -> dxc -> SPIR-V -> spirv-cross -> GLSL -> uam -> DKSH) y reporta en que
+(HLSL -> dxc -> SPIR-V -> spirv_cross_dksh -> GLSL -> uam -> DKSH) y reporta en que
 etapa falla cada uno. No se detiene en el primer error: el objetivo es el censo."""
 
 import argparse
@@ -20,9 +20,6 @@ STAGES = {
 }
 # build_ray_shader y build_library_shader son de raytracing/DXIL: no aplican en Switch
 CALL_RE = re.compile(r"^\s*build_(pixel|vertex|compute)_shader(_spec_constants)?\s*\(\s*(\w+)\s+(.*)\)\s*$")
-
-# GLSL de escritorio para uam: bindings explicitos y push constants como UBO
-SPIRV_CROSS_OPTS = ["--version", "460", "--no-es", "--combined-samplers-inherit-bindings", "--glsl-emit-push-constant-as-ubo"]
 
 
 def parse_calls(cmake_path, project_root):
@@ -66,7 +63,7 @@ def main():
     ap.add_argument("--rt64", required=True, type=Path)
     ap.add_argument("--recompui", required=True, type=Path)
     ap.add_argument("--dxc", required=True)
-    ap.add_argument("--spirv-cross", required=True)
+    ap.add_argument("--dksh-tool", required=True, help="ruta a spirv_cross_dksh")
     ap.add_argument("--uam", required=True)
     ap.add_argument("--out", required=True, type=Path)
     args = ap.parse_args()
@@ -88,9 +85,9 @@ def main():
         if not ok:
             status, detail = "dxc", first_error(log)
         else:
-            ok, log = run([args.spirv_cross] + SPIRV_CROSS_OPTS + [f"{base}.spv", "--output", f"{base}.glsl"])
+            ok, log = run([args.dksh_tool, f"{base}.spv", f"{base}.glsl", f"{base}.map"])
             if not ok:
-                status, detail = "spirv-cross", first_error(log)
+                status, detail = "spirv_cross_dksh", first_error(log)
             else:
                 ok, log = run([args.uam, "-s", uam_stage, "-o", f"{base}.dksh", f"{base}.glsl"])
                 if not ok:

@@ -1,0 +1,99 @@
+diff --git a/src/shared/rt64_gpu_tile.h b/src/shared/rt64_gpu_tile.h
+index 4548f15..eed4144 100644
+--- a/src/shared/rt64_gpu_tile.h
++++ b/src/shared/rt64_gpu_tile.h
+@@ -56,6 +56,10 @@ namespace interop {
+         uint2 texelShift;
+         uint2 texelMask;
+         uint textureIndex;
++        // GLSL/deko3d: float3 alineado a 16 bytes y tamano multiplo de 16
++        uint glPadding0;
++        uint glPadding1;
++        uint glPadding2;
+         float3 textureDimensions;
+         GPUTileFlags flags;
+     };
+diff --git a/src/shared/rt64_raster_params.h b/src/shared/rt64_raster_params.h
+index 0a5c332..53b1a97 100644
+--- a/src/shared/rt64_raster_params.h
++++ b/src/shared/rt64_raster_params.h
+@@ -11,7 +11,9 @@ namespace interop {
+ #endif
+     struct RasterParams {
+         uint renderIndex;
+-        uint3 padding;
++        uint padding0;
++        uint padding1;
++        uint padding2;
+         float2 screenScale;
+         float2 screenOffset;
+     };
+diff --git a/src/shared/rt64_rdp_params.h b/src/shared/rt64_rdp_params.h
+index 56e0301..bddce00 100644
+--- a/src/shared/rt64_rdp_params.h
++++ b/src/shared/rt64_rdp_params.h
+@@ -17,8 +17,13 @@ namespace interop {
+         float4 fogColor;
+         float4 blendColor;
+         float3 keyCenter;
++        // GLSL/deko3d: float3 alineado a 16 bytes y tamano multiplo de 16
++        float glPadding0;
+         float3 keyScale;
+         int convertK[6];
++        uint glPadding1;
++        uint glPadding2;
++        uint glPadding3;
+     };
+ #ifdef HLSL_CPU
+ };
+diff --git a/src/shared/rt64_rsp_light.h b/src/shared/rt64_rsp_light.h
+index 7bd24e4..0f1e5c5 100644
+--- a/src/shared/rt64_rsp_light.h
++++ b/src/shared/rt64_rsp_light.h
+@@ -11,11 +11,16 @@ namespace interop {
+ #endif
+     struct RSPLight {
+         float3 posDir;
++        // GLSL/deko3d: float3 alineado a 16 bytes y tamano multiplo de 16
++        float glPadding0;
+         float3 col;
++        float glPadding1;
+         float3 colc;
+         uint kc;
+         uint kl;
+         uint kq;
++        uint glPadding2;
++        uint glPadding3;
+     };
+ 
+ #ifndef HLSL_CPU
+diff --git a/src/shared/rt64_rsp_lookat.h b/src/shared/rt64_rsp_lookat.h
+index 1b3fbaf..977f53d 100644
+--- a/src/shared/rt64_rsp_lookat.h
++++ b/src/shared/rt64_rsp_lookat.h
+@@ -15,7 +15,10 @@ namespace interop {
+ #endif
+     struct RSPLookAt {
+         float3 x;
++        // GLSL/deko3d: float3 alineado a 16 bytes y tamano multiplo de 16
++        float glPadding0;
+         float3 y;
++        float glPadding1;
+     };
+ #ifdef HLSL_CPU
+ };
+diff --git a/src/shared/rt64_rsp_viewport.h b/src/shared/rt64_rsp_viewport.h
+index 36fe3b8..f8bc2aa 100644
+--- a/src/shared/rt64_rsp_viewport.h
++++ b/src/shared/rt64_rsp_viewport.h
+@@ -13,7 +13,10 @@ namespace interop {
+ #endif
+     struct RSPViewport {
+         float3 scale;
++        // GLSL/deko3d: float3 alineado a 16 bytes y tamano multiplo de 16
++        float glPadding0;
+         float3 translate;
++        float glPadding1;
+ 
+         static RSPViewport identity() {
+             RSPViewport viewport;

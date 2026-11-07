@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'switch/deko3d_shaders/**'
+      - 'switch/patches/**'
       - '.github/workflows/deko3d-shaders.yml'
 
 jobs:
@@ -23,29 +24,33 @@ jobs:
           apt-get install -y build-essential cmake python3
           dkp-pacman -Sy --noconfirm --needed switch-dev
 
-      # spirv-cross fijado por RT64 (el mismo que usa su backend de Metal)
-      - name: Restaurar spirv-cross desde cache
-        id: cache-spvc
+      # Mismos structs en CPU y GPU, con float3 alineados para que GLSL pueda expresarlos
+      - name: Aplicar parche de layout a RT64
+        run: git -C lib/rt64 apply "$GITHUB_WORKSPACE/switch/patches/rt64-gl-struct-layout.patch"
+
+      # spirv_cross_dksh se compila contra el spirv-cross fijado por RT64
+      - name: Restaurar spirv_cross_dksh desde cache
+        id: cache-dksh
         uses: actions/cache/restore@v4
         with:
-          path: spirv-cross-bin
-          key: spirv-cross-${{ env.SPIRV_CROSS_COMMIT }}
+          path: dksh-tool-bin
+          key: dksh-tool-${{ env.SPIRV_CROSS_COMMIT }}-${{ hashFiles('switch/deko3d_shaders/spirv_cross_dksh/**') }}
 
-      - name: Compilar spirv-cross
-        if: steps.cache-spvc.outputs.cache-hit != 'true'
+      - name: Compilar spirv_cross_dksh
+        if: steps.cache-dksh.outputs.cache-hit != 'true'
         run: |
-          cmake -S lib/rt64/src/contrib/spirv-cross -B /tmp/spvc -DCMAKE_BUILD_TYPE=Release \
-            -DSPIRV_CROSS_CLI=ON -DSPIRV_CROSS_ENABLE_TESTS=OFF -DSPIRV_CROSS_SHARED=OFF
-          cmake --build /tmp/spvc --target spirv-cross -j"$(nproc)"
-          mkdir -p spirv-cross-bin
-          cp /tmp/spvc/spirv-cross spirv-cross-bin/
+          cmake -S switch/deko3d_shaders/spirv_cross_dksh -B /tmp/dksh-tool -DCMAKE_BUILD_TYPE=Release \
+            -DSPIRV_CROSS_DIR="$GITHUB_WORKSPACE/lib/rt64/src/contrib/spirv-cross"
+          cmake --build /tmp/dksh-tool -j"$(nproc)"
+          mkdir -p dksh-tool-bin
+          cp /tmp/dksh-tool/spirv_cross_dksh dksh-tool-bin/
 
-      - name: Guardar spirv-cross en cache
-        if: steps.cache-spvc.outputs.cache-hit != 'true'
+      - name: Guardar spirv_cross_dksh en cache
+        if: steps.cache-dksh.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: spirv-cross-bin
-          key: spirv-cross-${{ env.SPIRV_CROSS_COMMIT }}
+          path: dksh-tool-bin
+          key: dksh-tool-${{ env.SPIRV_CROSS_COMMIT }}-${{ hashFiles('switch/deko3d_shaders/spirv_cross_dksh/**') }}
 
       - name: Censo de shaders
         run: |
@@ -55,7 +60,7 @@ jobs:
             --rt64 lib/rt64 \
             --recompui lib/RecompFrontend/recompui \
             --dxc "$DXC_DIR/bin/x64/dxc-linux" \
-            --spirv-cross "$GITHUB_WORKSPACE/spirv-cross-bin/spirv-cross" \
+            --dksh-tool "$GITHUB_WORKSPACE/dksh-tool-bin/spirv_cross_dksh" \
             --uam "$DEVKITPRO/tools/bin/uam" \
             --out shader-survey
 
