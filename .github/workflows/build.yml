@@ -1,6 +1,12 @@
 name: Build NRO
 on: [workflow_dispatch]
 
+env:
+  ROM_ID: 1Z_24D59F1e-s_RuWfim34DTRETZbWcz0
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 2G
+  CCACHE_COMPRESS: "true"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -10,50 +16,71 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Instalar dependencias del host
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          apt-get update
+          # clang/lld: compilan patches.elf (MIPS). ccache: cache de compilacion. zstd: comprime las caches
+          apt-get install -y build-essential cmake git clang lld ccache zstd
+          # Commit de N64Recomp fijado por N64ModernRuntime (debe coincidir con los headers que usa el juego)
+          echo "N64RECOMP_COMMIT=$(git -C lib/N64ModernRuntime rev-parse HEAD:N64Recomp)" >> "$GITHUB_ENV"
+
+      # ---------- ROM ----------
+      - name: Restaurar ROM desde cache
+        id: cache-rom
+        uses: actions/cache@v4
+        with:
+          path: hm64.us.z64
+          key: rom-${{ env.ROM_ID }}
+
       - name: Descargar ROM y verificar estado
+        if: steps.cache-rom.outputs.cache-hit != 'true'
         run: |
           echo "Iniciando descarga..."
-          curl -L -o hm64.us.z64 "https://docs.google.com/uc?export=download&id=1Z_24D59F1e-s_RuWfim34DTRETZbWcz0"
-          
-          if head -c 15 hm64.us.z64 | grep -q "<!DOCTYPE"; then
+          curl -fL -o hm64.us.z64 "https://drive.usercontent.google.com/download?id=${ROM_ID}&export=download&confirm=t"
+
+          if head -c 512 hm64.us.z64 | grep -qi "<!doctype\|<html"; then
             echo "ERROR: Descargaste una pagina HTML en lugar de la ROM binaria."
             exit 1
           fi
+          SIZE=$(stat -c %s hm64.us.z64)
+          if [ "$SIZE" -lt 1048576 ]; then
+            echo "ERROR: La ROM es demasiado pequena ($SIZE bytes)."
+            exit 1
+          fi
+          sha1sum hm64.us.z64
 
-      # Configurar caché para N64Recomp y el código fuente ya extraído
-      - name: Restaurar caché de Recompilación
-        id: cache-recomp
+      # ---------- N64Recomp / RSPRecomp (herramientas del host) ----------
+      - name: Restaurar N64Recomp desde cache
+        id: cache-tool
         uses: actions/cache@v4
         with:
           path: |
-            recomp_tool/
-            gamedata_extracted/
-            # Agrega aquí las rutas donde se genere el código C++ resultante de la recompilación
-          key: recomp-data-${{ hashFiles('hm64.us.toml', 'hm64.us.z64') }}
+            recomp_tool/build/N64Recomp
+            recomp_tool/build/RSPRecomp
+          key: n64recomp-${{ runner.os }}-${{ env.N64RECOMP_COMMIT }}
 
       - name: Compilar herramienta extractora (N64Recomp)
-        if: steps.cache-recomp.outputs.cache-hit != 'true'
+        if: steps.cache-tool.outputs.cache-hit != 'true'
         run: |
-          apt-get update && apt-get install -y build-essential cmake git clang lld
-          git clone https://github.com/N64Recomp/N64Recomp.git recomp_tool
-          cd recomp_tool
-          git submodule update --init --recursive
-          cmake -B build
-          cmake --build build -j4
+          cmake -S lib/N64ModernRuntime/N64Recomp -B recomp_tool/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build recomp_tool/build --target N64Recomp RSPRecomp -j"$(nproc)"
+
+      # ---------- Codigo extraido de la ROM ----------
+      - name: Restaurar codigo extraido desde cache
+        id: cache-extract
+        uses: actions/cache@v4
+        with:
+          path: |
+            RecompiledFuncs/
+            rsp/n_aspMain.cpp
+          key: extract-${{ env.N64RECOMP_COMMIT }}-${{ hashFiles('hm64.us.z64', 'hm64.us.toml', 'n_aspMain.toml', 'HarvestMoon64RecompSyms/**') }}
 
       - name: Extraer codigo fuente de la ROM y RSP
-        if: steps.cache-recomp.outputs.cache-hit != 'true'
+        if: steps.cache-extract.outputs.cache-hit != 'true'
         run: |
-          git config --global --add safe.directory /__w/HarvestMoon64Recomp/HarvestMoon64Recomp
-          git submodule update --init --recursive
-          
           ./recomp_tool/build/N64Recomp hm64.us.toml
-          
-          if [ -f "./recomp_tool/build/RSPRecomp" ]; then
-            ./recomp_tool/build/RSPRecomp n_aspMain.toml
-          else
-            ./recomp_tool/build/N64Recomp n_aspMain.toml
-          fi
+          ./recomp_tool/build/RSPRecomp n_aspMain.toml
 
       - name: Parchear codigo C++ para Nintendo Switch
         run: |
@@ -96,65 +123,86 @@ jobs:
           }
           static inline int munmap(void* addr, size_t len) { (void)len; free(addr); return 0; }
           EOF
-          
+
           sed -i '1i include_directories("/opt/devkitpro/portlibs/switch/include/SDL2")' CMakeLists.txt
           sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/mock_headers")' CMakeLists.txt
           # newlib (Switch) tiene FILE::_p, asi que fmt elige la ruta de Apple y usa putc_unlocked, que no existe aqui
           sed -i '1i add_compile_definitions(FMT_USE_FALLBACK_FILE=1)' CMakeLists.txt
-          
-          find . -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
-          find . -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
-          
+
+          # Solo buscar en el codigo fuente (no en la cache de ccache ni en las herramientas)
+          SRC_DIRS="lib src include"
+
+          find $SRC_DIRS -type f -name "GamepadMotion.hpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
+          find $SRC_DIRS -type f -name "input_events.cpp" -exec sed -i '1i #ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif' {} +
+
           # WindowHandle solo se define para Win32/Linux/Android/Apple; en Switch usamos SDL_Window* igual que Linux
-          find . -type f -name "renderer_context.hpp" -exec sed -i 's/#elif defined(__linux__) || defined(__ANDROID__)/#elif defined(__linux__) || defined(__ANDROID__) || defined(__SWITCH__)/' {} +
-          
-          find . -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
-          
-          find . -type f -name "plume_render_interface_types.h" -exec sed -i 's/static_assert(false, "RenderWindow was not defined for this platform.");/\/\//g' {} +
-          find . -type f -name "plume_render_interface_types.h" -exec sed -i '1i typedef void* RenderWindow;' {} +
-          find . -type f -name "plume_render_interface.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
-          find . -type f -name "plume_vulkan.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
-          find . -type f -name "plume_vulkan.cpp" -exec sed -i 's/RenderWindow/void\*/g' {} +
-          
-          find . -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
+          find $SRC_DIRS -type f -name "renderer_context.hpp" -exec sed -i 's/#elif defined(__linux__) || defined(__ANDROID__)/#elif defined(__linux__) || defined(__ANDROID__) || defined(__SWITCH__)/' {} +
+
+          find $SRC_DIRS -type f -name "error_handling.cpp" -exec sed -i 's/std::quick_exit/::quick_exit/g' {} +
+
+          find $SRC_DIRS -type f -name "plume_render_interface_types.h" -exec sed -i 's/static_assert(false, "RenderWindow was not defined for this platform.");/\/\//g' {} +
+          find $SRC_DIRS -type f -name "plume_render_interface_types.h" -exec sed -i '1i typedef void* RenderWindow;' {} +
+          find $SRC_DIRS -type f -name "plume_render_interface.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
+          find $SRC_DIRS -type f -name "plume_vulkan.h" -exec sed -i 's/RenderWindow/void\*/g' {} +
+          find $SRC_DIRS -type f -name "plume_vulkan.cpp" -exec sed -i 's/RenderWindow/void\*/g' {} +
+
+          find $SRC_DIRS -type f -name "lightweightsemaphore.h" -exec sed -i 's/defined(__unix__)/defined(__unix__) || defined(__SWITCH__)/g' {} +
           # rt64_thread: nombre/prioridad de hilo sin implementar en Switch -> no-op
           sed -i 's/static_assert(false, "Unimplemented");/(void)0;/' lib/rt64/src/common/rt64_thread.cpp
           # dxc se ejecuta en el host (x86_64), no en la Switch: elegir el binario segun la arquitectura del host
           sed -i 's/CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"/CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"/g' lib/rt64/CMakeLists.txt
-          echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt || true
+          echo 'set_target_properties(nfd PROPERTIES LINKER_LANGUAGE CXX)' >> lib/rt64/src/contrib/nativefiledialog-extended/CMakeLists.txt
+
+          # Verificacion: debe aparecer la definicion insertada
+          grep -n "__SWITCH__" lib/N64ModernRuntime/ultramodern/include/ultramodern/renderer_context.hpp
 
       - name: Compilar herramienta nativa file_to_c para el host
         run: |
-          FILE_PATH=$(find . -path "*/tools/file_to_c/file_to_c.cpp" | head -n 1)
+          FILE_PATH=$(find lib -path "*/tools/file_to_c/file_to_c.cpp" | head -n 1)
           echo "Usando: $FILE_PATH"
-          g++ -O3 "$FILE_PATH" -o native_file_to_c
+          g++ -O2 "$FILE_PATH" -o /usr/local/bin/file_to_c
 
-      - name: Compilar juego nativo de Switch (.nro)
+      # ---------- Cache de compilacion (ccache) ----------
+      - name: Restaurar cache de compilacion (ccache)
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-switch-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-switch-${{ github.sha }}-
+            ccache-switch-
+
+      - name: Compilar juego nativo de Switch
         run: |
+          # patches.toml se ejecuta con ./N64Recomp desde la raiz del repo
           cp recomp_tool/build/N64Recomp .
-          cp recomp_tool/build/RSPRecomp . || true
-          
-          mkdir build_switch && cd build_switch
-          cp ../recomp_tool/build/N64Recomp .
-          cp ../recomp_tool/build/RSPRecomp . || true
-          
-          cmake -G "Unix Makefiles" \
+
+          ccache --zero-stats
+          cmake -S . -B build_switch -G "Unix Makefiles" \
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DFMT_OS=OFF \
             -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD=ON \
-            -DZSTD_BUILD_PROGRAMS=OFF \
-            ..
-          
-          cp ../native_file_to_c /usr/bin/file_to_c
-          chmod +x /usr/bin/file_to_c
-          
-          cp ../native_file_to_c file_to_c
-          chmod +x file_to_c
-          
-          make -j4
+            -DZSTD_BUILD_PROGRAMS=OFF
+          cmake --build build_switch -j"$(nproc)"
+          ccache --show-stats
+
+      - name: Empaquetar NRO
+        run: |
+          cd build_switch
+          ELF=$(ls HarvestMoon64Recompiled.elf HarvestMoon64Recompiled 2>/dev/null | head -n 1)
+          if [ -z "$ELF" ]; then
+            echo "ERROR: no se encontro el ejecutable HarvestMoon64Recompiled"
+            exit 1
+          fi
+          /opt/devkitpro/tools/bin/nacptool --create "Harvest Moon 64 Recompiled" "HarvestMoon64Recomp" "1.0.0" HarvestMoon64Recompiled.nacp
+          /opt/devkitpro/tools/bin/elf2nro "$ELF" HarvestMoon64Recompiled.nro --nacp=HarvestMoon64Recompiled.nacp
 
       - name: Guardar NRO
         uses: actions/upload-artifact@v4
         with:
           name: HM64Recomp-Switch
           path: build_switch/*.nro
+          if-no-files-found: error
